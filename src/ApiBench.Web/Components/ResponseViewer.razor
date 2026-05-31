@@ -1,0 +1,182 @@
+@namespace ApiBench.Web.Components
+@using System.Text.RegularExpressions
+
+@if (Response == null)
+{
+    <MudAlert Severity="Severity.Info" Icon="@Icons.Material.Filled.Info">No response yet.</MudAlert>
+}
+else
+{
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-4 p-3 rounded bg-gray-100">
+        <MudChip T="string" Color="@GetStatusColor(Response.StatusCode)" Variant="Variant.Filled">
+            @Response.StatusCode
+        </MudChip>
+        <MudText Typo="Typo.subtitle1">@Response.StatusText</MudText>
+        <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined">
+            @Response.ElapsedMs ms
+        </MudChip>
+        <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined">
+            @Response.ContentType
+        </MudChip>
+    </div>
+
+    <MudTabs>
+        <MudTabPanel Text="Body">
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <MudTextField @bind-Value="_searchText" Placeholder="Search..." Variant="Variant.Outlined" AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start" Style="flex: 1; min-width: 200px;" />
+                <MudCheckBox T="bool" @bind-Value="_useRegex" Label="Regex" Color="Color.Primary" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PerformSearch">
+                    Search
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="PrettyPrint">
+                    Pretty Print
+                </MudButton>
+            </div>
+
+            @if (IsImageContentType(Response.ContentType))
+            {
+                if (!string.IsNullOrEmpty(Response.Body))
+                {
+                    <MudImage Src="@GetImageSrc(Response.ContentType, Response.Body)" Alt="Response Image" Style="max-width: 100%; height: auto;" />
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info">Image response with no body data.</MudAlert>
+                }
+            }
+            else
+            {
+                <MudTextField @bind-Value="_displayBody" T="string" Lines="20" Variant="Variant.Outlined" ReadOnly="true" FullWidth="true" />
+                @if (!string.IsNullOrEmpty(_searchText) && _matchCount > 0)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Primary">Found @_matchCount match(es) found</MudText>
+                }
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Headers">
+            <MudTable Items="@Response.Headers" Hover="true">
+                <HeaderContent>
+                    <MudTh>Key</MudTh>
+                    <MudTh>Value</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Key</MudTd>
+                    <MudTd>@context.Value</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Cookies">
+            <MudTable Items="@Response.Cookies" Hover="true">
+                <HeaderContent>
+                    <MudTh>Key</MudTh>
+                    <MudTh>Value</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Key</MudTd>
+                    <MudTd>@context.Value</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    [Parameter] public ApiResponse? Response { get; set; }
+
+    private string _searchText = string.Empty;
+    private bool _useRegex;
+    private string _displayBody = string.Empty;
+    private int _matchCount;
+
+    protected override void OnParametersSet()
+    {
+        _displayBody = Response?.Body ?? string.Empty;
+        _searchText = string.Empty;
+        _matchCount = 0;
+    }
+
+    private void PerformSearch()
+    {
+        if (string.IsNullOrEmpty(_searchText) || string.IsNullOrEmpty(_displayBody))
+        {
+            _matchCount = 0;
+            return;
+        }
+
+        try
+        {
+            if (_useRegex)
+            {
+                var matches = Regex.Matches(_displayBody, _searchText, RegexOptions.IgnoreCase);
+                _matchCount = matches.Count;
+            }
+            else
+            {
+                _matchCount = _displayBody.Split(new[] { _searchText }, StringSplitOptions.None).Length - 1;
+            }
+        }
+        catch
+        {
+            _matchCount = 0;
+        }
+    }
+
+    private Color GetStatusColor(int statusCode)
+    {
+        if (statusCode >= 200 && statusCode < 300)
+            return Color.Success;
+        if (statusCode >= 300 && statusCode < 400)
+            return Color.Warning;
+        return Color.Error;
+    }
+
+    private bool IsImageContentType(string contentType)
+    {
+        return contentType.Contains("image", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetImageSrc(string contentType, string body)
+    {
+        return $"data:{contentType};base64,{body}";
+    }
+
+    private void PrettyPrint()
+    {
+        if (string.IsNullOrEmpty(Response?.Body))
+            return;
+
+        var contentType = Response.ContentType;
+        var body = Response.Body;
+
+        if (contentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var json = System.Text.Json.JsonDocument.Parse(body);
+                _displayBody = System.Text.Json.JsonSerializer.Serialize(json, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            }
+            catch
+            {
+                _displayBody = body;
+            }
+        }
+        else if (contentType.Contains("xml", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var doc = new System.Xml.XmlDocument();
+                doc.LoadXml(body);
+                using var sw = new System.IO.StringWriter();
+                using var xw = new System.Xml.XmlTextWriter(sw) { Formatting = System.Xml.Formatting.Indented };
+                doc.WriteTo(xw);
+                _displayBody = sw.ToString();
+            }
+            catch
+            {
+                _displayBody = body;
+            }
+        }
+    }
+}

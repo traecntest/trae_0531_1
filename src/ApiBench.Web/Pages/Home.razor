@@ -1,0 +1,117 @@
+@page "/"
+@namespace ApiBench.Web.Pages
+@inject HttpClientService HttpClientService
+@inject IDialogService DialogService
+@inject EnvironmentService EnvironmentService
+@inject ISnackbar Snackbar
+@inject IndexedDbService IndexedDbService
+
+<PageTitle>ApiBench - API Testing</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">API Tester</MudText>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" lg="6">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6" Class="mb-3">Request</MudText>
+                    <RequestBuilder @bind-Value="currentRequest" OnSendRequest="SendRequest" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" lg="6">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6" Class="mb-3">Response</MudText>
+                    <ResponseViewer Response="currentResponse" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <MudCard Elevation="1" Class="mt-3">
+        <MudCardContent>
+            <MudButtonGroup Variant="Variant.Filled" Color="Color.Primary">
+                <MudButton OnClick="OpenCodeGenerator">
+                    <MudIcon Icon="@Icons.Material.Filled.Code" Class="mr-1" />
+                    Generate Code
+                </MudButton>
+                <MudButton OnClick="SaveRequest">
+                    <MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-1" />
+                    Save Request
+                </MudButton>
+                <MudButton OnClick="AddToCollection">
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Class="mr-1" />
+                    Add to Collection
+                </MudButton>
+            </MudButtonGroup>
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private ApiRequest currentRequest = new();
+    private ApiResponse? currentResponse;
+    private ApiEnvironment? activeEnvironment;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentRequest = new ApiRequest();
+        activeEnvironment = await EnvironmentService.GetActiveEnvironmentAsync();
+    }
+
+    private async Task SendRequest(ApiRequest request)
+    {
+        currentResponse = await HttpClientService.SendAsync(request, activeEnvironment);
+        
+        var historyEntry = new HistoryEntry
+        {
+            Request = request,
+            Response = currentResponse,
+            Timestamp = DateTime.UtcNow
+        };
+        await IndexedDbService.PutAsync("history", historyEntry);
+
+        if (currentResponse.StatusCode >= 200 && currentResponse.StatusCode < 300)
+        {
+            Snackbar.Add($"Request completed successfully", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add($"Request completed with status {currentResponse.StatusCode}", Severity.Info);
+        }
+    }
+
+    private async void OpenCodeGenerator()
+    {
+        var parameters = new DialogParameters<CodeGeneratorDialog>
+        {
+            { x => x.Request, currentRequest }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true };
+        await DialogService.ShowAsync<CodeGeneratorDialog>("Generate Code", parameters, options);
+    }
+
+    private async void SaveRequest()
+    {
+        await IndexedDbService.PutAsync("requests", currentRequest);
+        Snackbar.Add("Request saved", Severity.Success);
+    }
+
+    private async void AddToCollection()
+    {
+        var collections = await IndexedDbService.GetAllAsync<ApiCollection>("collections");
+        
+        if (!collections.Any())
+        {
+            Snackbar.Add("No collections found. Create a collection first", Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Add to Collection", parameters, options);
+    }
+}

@@ -1,0 +1,351 @@
+@namespace ApiBench.Web.Components
+@inject IJSRuntime JSRuntime
+
+<div class="request-builder">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudSelect T="string" @bind-Value="@Value.Method" AnchorOrigin="Origin.BottomLeft" Dense="true" Style="width: 120px;">
+            @foreach (var method in _httpMethods)
+            {
+                <MudSelectItem T="string" Value="@method.Value">@method.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudTextField @bind-Value="@Value.Url" T="string" Placeholder="Enter request URL" FullWidth="true" Immediate="true" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@OnSend">Send</MudButton>
+    </MudStack>
+
+    <MudTabs Elevation="0" Outlined="true">
+        <MudTabPanel Text="Params">
+            <MudStack Spacing="4">
+                <div>
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                        <MudText Typo="Typo.subtitle2">Path Parameters</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="@(() => AddPathParam())" />
+                    </MudStack>
+                    <MudTable Items="@Value.PathParams" Hover="true" Dense="true">
+                        <HeaderContent>
+                            <MudTh>Enabled</MudTh>
+                            <MudTh>Key</MudTh>
+                            <MudTh>Value</MudTh>
+                            <MudTh style="width: 60px;"></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>
+                                <MudCheckBox @bind-Value="@context.Enabled" Color="Color.Primary" Size="Size.Small" />
+                            </MudTd>
+                            <MudTd>
+                                <MudTextField @bind-Value="@context.Key" Margin="Margin.None" />
+                            </MudTd>
+                            <MudTd>
+                                <MudTextField @bind-Value="@context.Value" Margin="Margin.None" />
+                            </MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemovePathParam(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </div>
+                <div>
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                        <MudText Typo="Typo.subtitle2">Query Parameters</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="@(() => AddQueryParam())" />
+                    </MudStack>
+                    <MudTable Items="@Value.QueryParams" Hover="true" Dense="true">
+                        <HeaderContent>
+                            <MudTh>Enabled</MudTh>
+                            <MudTh>Key</MudTh>
+                            <MudTh>Value</MudTh>
+                            <MudTh style="width: 60px;"></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>
+                                <MudCheckBox @bind-Value="@context.Enabled" Color="Color.Primary" Size="Size.Small" />
+                            </MudTd>
+                            <MudTd>
+                                <MudTextField @bind-Value="@context.Key" Margin="Margin.None" />
+                            </MudTd>
+                            <MudTd>
+                                <MudTextField @bind-Value="@context.Value" Margin="Margin.None" />
+                            </MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemoveQueryParam(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </div>
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Headers">
+            <MudStack Spacing="2">
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                    <MudText Typo="Typo.subtitle2">Headers</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="@AddHeader" />
+                </MudStack>
+                <MudTable Items="@Value.Headers" Hover="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Enabled</MudTh>
+                        <MudTh>Key</MudTh>
+                        <MudTh>Value</MudTh>
+                        <MudTh style="width: 60px;"></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <MudCheckBox @bind-Value="@context.Enabled" Color="Color.Primary" Size="Size.Small" />
+                        </MudTd>
+                        <MudTd>
+                            <MudAutocomplete T="string" @bind-Value="@context.Key" SearchFunc="@SearchCommonHeaders" Margin="Margin.None" />
+                        </MudTd>
+                        <MudTd>
+                            <MudTextField @bind-Value="@context.Value" Margin="Margin.None" />
+                        </MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemoveHeader(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Body">
+            <MudTabs Elevation="0" Rounded="true">
+                <MudTabPanel Text="None">
+                    <MudText Class="pa-4" Color="Color.Default">No body will be sent with this request.</MudText>
+                </MudTabPanel>
+                <MudTabPanel Text="Raw">
+                    <MudStack Spacing="2" Class="pt-2">
+                        <MudStack Row="true" Spacing="2">
+                            <MudSelect T="string" @bind-Value="@_rawBodyType" Dense="true">
+                                @foreach (var bt in _bodyTypes)
+                                {
+                                    <MudSelectItem T="string" Value="@bt.Value">@bt.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudStack>
+                        <MudTextField @bind-Value="@Value.RawBody" T="string" Lines="15" Placeholder="Enter body content..." FullWidth="true" />
+                    </MudStack>
+                </MudTabPanel>
+                <MudTabPanel Text="Form-Data">
+                    <MudStack Spacing="2" Class="pt-2">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+                            <MudText Typo="Typo.subtitle2">Form Fields</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="@AddFormField" />
+                        </MudStack>
+                        <MudTable Items="@Value.FormFields" Hover="true" Dense="true">
+                            <HeaderContent>
+                                <MudTh>Enabled</MudTh>
+                                <MudTh>Key</MudTh>
+                                <MudTh>Value</MudTh>
+                                <MudTh style="width: 60px;"></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>
+                                    <MudCheckBox @bind-Value="@context.Enabled" Color="Color.Primary" Size="Size.Small" />
+                                </MudTd>
+                                <MudTd>
+                                    <MudTextField @bind-Value="@context.Key" Margin="Margin.None" />
+                                </MudTd>
+                                <MudTd>
+                                    <MudTextField @bind-Value="@context.Value" Margin="Margin.None" />
+                                </MudTd>
+                                <MudTd>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => RemoveFormField(context))" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudStack>
+                </MudTabPanel>
+                <MudTabPanel Text="Binary">
+                    <MudStack Spacing="3" Class="pt-4">
+                        <InputFile id="binaryFileInput" OnChange="@OnFileSelected" Style="display: none;" />
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@SelectFile">Select File</MudButton>
+                            <MudText Typo="Typo.body2">@(string.IsNullOrEmpty(Value.BinaryFileName) ? "No file selected" : Value.BinaryFileName)</MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudTabPanel>
+            </MudTabs>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Pre-request Script">
+            <MudStack Spacing="2" Class="pt-2">
+                <MudText Typo="Typo.body2" Color="Color.Default">Add JavaScript code to run before the request is sent.</MudText>
+                <MudTextField @bind-Value="@Value.PreRequestScript" T="string" Lines="20" Placeholder="// Add pre-request script here..." FullWidth="true" />
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Tests">
+            <MudStack Spacing="2" Class="pt-2">
+                <MudText Typo="Typo.body2" Color="Color.Default">Add JavaScript test scripts to validate the response.</MudText>
+                <MudTextField @bind-Value="@Value.TestScript" T="string" Lines="20" Placeholder="// Add test scripts here..." FullWidth="true" />
+            </MudStack>
+        </MudTabPanel>
+    </MudTabs>
+</div>
+
+@code {
+    private class SelectOption
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+
+    private readonly List<SelectOption> _httpMethods = new()
+    {
+        new SelectOption { Name = "GET", Value = "GET" },
+        new SelectOption { Name = "POST", Value = "POST" },
+        new SelectOption { Name = "PUT", Value = "PUT" },
+        new SelectOption { Name = "DELETE", Value = "DELETE" },
+        new SelectOption { Name = "PATCH", Value = "PATCH" },
+        new SelectOption { Name = "HEAD", Value = "HEAD" },
+        new SelectOption { Name = "OPTIONS", Value = "OPTIONS" }
+    };
+
+    private readonly List<SelectOption> _bodyTypes = new()
+    {
+        new SelectOption { Name = "JSON", Value = "json" },
+        new SelectOption { Name = "XML", Value = "xml" },
+        new SelectOption { Name = "Text", Value = "text" }
+    };
+
+    [Parameter]
+    public ApiRequest Value { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<ApiRequest> ValueChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<ApiRequest> OnSendRequest { get; set; }
+
+    private string _rawBodyType = "json";
+    private string RawBodyType
+    {
+        get => _rawBodyType;
+        set
+        {
+            _rawBodyType = value;
+            Value.BodyType = value switch
+            {
+                "json" => BodyContentType.Json,
+                "xml" => BodyContentType.Xml,
+                "text" => BodyContentType.None,
+                _ => BodyContentType.None
+            };
+        }
+    }
+
+    private readonly List<string> _commonHeaders = new()
+    {
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "User-Agent",
+        "Cache-Control",
+        "Accept-Encoding",
+        "Accept-Language",
+        "Connection",
+        "Cookie",
+        "Host",
+        "Origin",
+        "Referer",
+        "X-Requested-With",
+        "X-API-Key",
+        "X-CSRF-Token",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Methods",
+        "Access-Control-Allow-Headers",
+        "Access-Control-Allow-Credentials"
+    };
+
+    protected override void OnInitialized()
+    {
+        if (Value.BodyType == BodyContentType.Json)
+        {
+            _rawBodyType = "json";
+        }
+        else if (Value.BodyType == BodyContentType.Xml)
+        {
+            _rawBodyType = "xml";
+        }
+        else
+        {
+            _rawBodyType = "text";
+        }
+    }
+
+    private async Task OnSend()
+    {
+        await OnSendRequest.InvokeAsync(Value);
+    }
+
+    private void AddPathParam()
+    {
+        Value.PathParams.Add(new KeyValueItem { Key = string.Empty, Value = string.Empty, Enabled = true });
+    }
+
+    private void RemovePathParam(KeyValueItem item)
+    {
+        Value.PathParams.Remove(item);
+    }
+
+    private void AddQueryParam()
+    {
+        Value.QueryParams.Add(new KeyValueItem { Key = string.Empty, Value = string.Empty, Enabled = true });
+    }
+
+    private void RemoveQueryParam(KeyValueItem item)
+    {
+        Value.QueryParams.Remove(item);
+    }
+
+    private void AddHeader()
+    {
+        Value.Headers.Add(new KeyValueItem { Key = string.Empty, Value = string.Empty, Enabled = true });
+    }
+
+    private void RemoveHeader(KeyValueItem item)
+    {
+        Value.Headers.Remove(item);
+    }
+
+    private Task<IEnumerable<string>> SearchCommonHeaders(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return Task.FromResult(_commonHeaders.AsEnumerable());
+        }
+
+        return Task.FromResult(_commonHeaders.Where(h => h.Contains(value, StringComparison.OrdinalIgnoreCase)).AsEnumerable());
+    }
+
+    private void AddFormField()
+    {
+        Value.FormFields.Add(new KeyValueItem { Key = string.Empty, Value = string.Empty, Enabled = true });
+    }
+
+    private void RemoveFormField(KeyValueItem item)
+    {
+        Value.FormFields.Remove(item);
+    }
+
+    private async Task SelectFile()
+    {
+        await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('binaryFileInput').click()");
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            Value.BinaryFileName = file.Name;
+            
+            using var stream = file.OpenReadStream();
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            Value.BinaryFileBase64 = Convert.ToBase64String(memoryStream.ToArray());
+            Value.BodyType = BodyContentType.Binary;
+            
+            await ValueChanged.InvokeAsync(Value);
+        }
+    }
+}

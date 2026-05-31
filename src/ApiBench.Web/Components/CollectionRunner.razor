@@ -1,0 +1,121 @@
+@namespace ApiBench.Web.Components
+@using ApiBench.Web.Services
+@inject CollectionRunnerService CollectionRunnerService
+@inject ISnackbar Snackbar
+
+<div class="collection-runner">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@RunCollectionAsync" Disabled="@_isRunning" StartIcon="@Icons.Material.Filled.PlayArrow">
+            @if (_isRunning)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ms-n1" />
+                <MudText Class="ms-2">Running...</MudText>
+            }
+            else
+            {
+                <span>Run Collection</span>
+            }
+        </MudButton>
+        <MudText Typo="Typo.subtitle2">@Collection.Name</MudText>
+    </MudStack>
+
+    @if (_isRunning)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Success" Class="mb-4" />
+    }
+
+    @if (_results.Any())
+    {
+        <MudTable T="RunResult" Items="@_results" Hover="true" Dense="true" Class="mb-4">
+            <HeaderContent>
+                <MudTh>Request Name</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Time</MudTh>
+                <MudTh>Tests</MudTh>
+                <MudTh>Passed</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Request Name">@context.RequestName</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Response.StatusCode)">
+                        @context.Response.StatusCode
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Time">@context.Response.ElapsedMs ms</MudTd>
+                <MudTd DataLabel="Tests">@context.TestResults.Count</MudTd>
+                <MudTd DataLabel="Passed">
+                    <MudChip T="string" Size="Size.Small" Color="@(context.AllPassed ? Color.Success : Color.Error)">
+                        @(context.AllPassed ? "All Passed" : "Failed")
+                    </MudChip>
+                </MudTd>
+            </RowTemplate>
+            <ChildRowContent>
+                <MudSimpleTable>
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Message</th>
+                            <th>Assertion</th>
+                            <th>Expected</th>
+                            <th>Actual</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var testResult in context.TestResults)
+                        {
+                            <tr>
+                                <td>
+                                    <MudBadge Color="@(testResult.Passed ? Color.Success : Color.Error)" Content="@(testResult.Passed ? "PASS" : "FAIL")" />
+                                </td>
+                                <td>@testResult.Message</td>
+                                <td>@testResult.AssertionType</td>
+                                <td>@testResult.Expected</td>
+                                <td>@testResult.Actual</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </ChildRowContent>
+        </MudTable>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public ApiCollection Collection { get; set; } = new();
+
+    private bool _isRunning;
+    private List<RunResult> _results = new();
+
+    private async Task RunCollectionAsync()
+    {
+        _isRunning = true;
+        _results.Clear();
+
+        try
+        {
+            _results = await CollectionRunnerService.RunCollectionAsync(Collection);
+            Snackbar.Add($"Collection completed: {_results.Count(r => r.AllPassed)}/{_results.Count} tests passed", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error running collection: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isRunning = false;
+        }
+    }
+
+    private Color GetStatusColor(int statusCode)
+    {
+        return statusCode switch
+        {
+            >= 200 and < 300 => Color.Success,
+            >= 300 and < 400 => Color.Info,
+            >= 400 and < 500 => Color.Warning,
+            >= 500 => Color.Error,
+            _ => Color.Default
+        };
+    }
+}

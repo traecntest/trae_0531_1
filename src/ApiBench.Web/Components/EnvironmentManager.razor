@@ -1,0 +1,150 @@
+@namespace ApiBench.Web.Components
+@inject EnvironmentService EnvironmentService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudCard>
+    <MudCardContent>
+        <div class="d-flex justify-between align-center mb-4">
+            <MudText Typo="Typo.h6">Environments</MudText>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="OpenAddDialog">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-1" />
+                Add Environment
+            </MudButton>
+        </div>
+
+        <MudTable Items="@_environments" Loading="@_loading" Hover="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Variable Count</MudTh>
+                <MudTh>Active</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Variable Count">@context.Variables.Count</MudTd>
+                <MudTd DataLabel="Active">
+                    <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Default)" Size="Size.Small">
+                        @(context.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudStack Row="true" Spacing="1">
+                        <MudTooltip Text="Set Active">
+                            <MudIconButton Color="Color.Primary" Icon="@Icons.Material.Filled.CheckCircle" OnClick="@(() => SetActive(context))" Disabled="@context.IsActive" />
+                        </MudTooltip>
+                        <MudTooltip Text="Edit">
+                            <MudIconButton Color="Color.Warning" Icon="@Icons.Material.Filled.Edit" OnClick="@(() => OpenEditDialog(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Delete">
+                            <MudIconButton Color="Color.Error" Icon="@Icons.Material.Filled.Delete" OnClick="@(() => DeleteEnvironment(context))" />
+                        </MudTooltip>
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Color="Color.Default">No environments found. Click "Add Environment" to create one.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private List<ApiEnvironment> _environments = new();
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEnvironments();
+    }
+
+    private async Task LoadEnvironments()
+    {
+        _loading = true;
+        try
+        {
+            _environments = await EnvironmentService.GetEnvironmentsAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async void OpenAddDialog()
+    {
+        var parameters = new DialogParameters<EnvironmentDialog>
+        {
+            { x => x.Environment, new ApiEnvironment() }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<EnvironmentDialog>("Add Environment", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is ApiEnvironment env)
+        {
+            await EnvironmentService.SaveEnvironmentAsync(env);
+            await LoadEnvironments();
+            Snackbar.Add("Environment saved successfully", Severity.Success);
+        }
+    }
+
+    private async void OpenEditDialog(ApiEnvironment environment)
+    {
+        var parameters = new DialogParameters<EnvironmentDialog>
+        {
+            { x => x.Environment, CloneEnvironment(environment) }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<EnvironmentDialog>("Edit Environment", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is ApiEnvironment env)
+        {
+            env.Id = environment.Id;
+            env.IsActive = environment.IsActive;
+            await EnvironmentService.SaveEnvironmentAsync(env);
+            await LoadEnvironments();
+            Snackbar.Add("Environment updated successfully", Severity.Success);
+        }
+    }
+
+    private async Task SetActive(ApiEnvironment environment)
+    {
+        await EnvironmentService.SetActiveEnvironmentAsync(environment.Id);
+        await LoadEnvironments();
+        Snackbar.Add($"Set '{environment.Name}' as active environment", Severity.Success);
+    }
+
+    private async Task DeleteEnvironment(ApiEnvironment environment)
+    {
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Are you sure you want to delete environment '{environment.Name}'?" },
+            { "ButtonText", "Delete" },
+            { "Color", Color.Error }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirm Delete", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await EnvironmentService.DeleteEnvironmentAsync(environment.Id);
+            await LoadEnvironments();
+            Snackbar.Add("Environment deleted successfully", Severity.Success);
+        }
+    }
+
+    private ApiEnvironment CloneEnvironment(ApiEnvironment env)
+    {
+        return new ApiEnvironment
+        {
+            Name = env.Name,
+            Variables = env.Variables.Select(v => new KeyValueItem { Key = v.Key, Value = v.Value, Enabled = v.Enabled }).ToList()
+        };
+    }
+}

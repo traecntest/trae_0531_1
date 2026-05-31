@@ -1,0 +1,50 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@(() => DrawerToggle())" />
+        <MudText Typo="Typo.h6" Class="ml-3">ApiBench</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save">Save</MudButton>
+    </MudAppBar>
+
+    <MudDrawer Open="_drawerOpen" OpenChanged="DrawerChanged" Elevation="2">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">ApiBench</MudText>
+        </MudDrawerHeader>
+        <MudNavMenu>
+            <MudNavGroup Title="Collections" Icon="@Icons.Material.Filled.Folder" Expanded="true">
+                <MudNavLink Href="/">New Request</MudNavLink>
+                <MudNavLink Href="/collections">Collections</MudNavLink>
+            </MudNavGroup>
+            <MudNavGroup Title="History" Icon="@Icons.Material.Filled.History" Expanded="true">
+                <MudNavLink Href="/history">View History</MudNavLink>
+            </MudNavGroup>
+            <MudNavGroup Title="Environments" Icon="@Icons.Material.Filled.Settings">
+                <MudNavLink Href="/environments">Manage</MudNavLink>
+            </MudNavGroup>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent Class="mt-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+
+    private void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private void DrawerChanged(bool isOpen)
+    {
+        _drawerOpen = isOpen;
+    }
+}

@@ -1,0 +1,80 @@
+@namespace ApiBench.Web.Components
+@inject IJSRuntime JSRuntime
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="@_environment.Name" Label="Environment Name" Variant="Variant.Outlined" FullWidth="true" Class="mb-4" />
+
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+            <MudText Typo="Typo.subtitle1">Variables</MudText>
+            <MudButton Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" OnClick="AddVariable">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-1" />
+                Add Variable
+            </MudButton>
+        </MudStack>
+
+        <MudTable Items="@_environment.Variables" Hover="true">
+            <HeaderContent>
+                <MudTh>Key</MudTh>
+                <MudTh>Value</MudTh>
+                <MudTh>Enabled</MudTh>
+                <MudTh style="width: 60px;"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <MudTextField @bind-Value="@context.Key" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
+                </MudTd>
+                <MudTd>
+                    <MudTextField @bind-Value="@context.Value" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
+                </MudTd>
+                <MudTd>
+                    <MudSwitch @bind-Value="@context.Enabled" Color="Color.Primary" />
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Color="Color.Error" Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveVariable(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit" Disabled="@string.IsNullOrWhiteSpace(_environment.Name)">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IDialogReference? DialogReference { get; set; }
+
+    [Parameter] public ApiEnvironment Environment { get; set; } = new();
+
+    private ApiEnvironment _environment = new();
+
+    protected override void OnParametersSet()
+    {
+        _environment = new ApiEnvironment
+        {
+            Name = Environment.Name,
+            Variables = Environment.Variables.Select(v => new KeyValueItem { Key = v.Key, Value = v.Value, Enabled = v.Enabled }).ToList()
+        };
+    }
+
+    private void AddVariable()
+    {
+        _environment.Variables.Add(new KeyValueItem { Enabled = true });
+    }
+
+    private void RemoveVariable(KeyValueItem item)
+    {
+        _environment.Variables.Remove(item);
+    }
+
+    private void Submit()
+    {
+        DialogReference?.Close(DialogResult.Ok(_environment));
+    }
+
+    private void Cancel()
+    {
+        DialogReference?.Close();
+    }
+}

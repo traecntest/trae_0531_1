@@ -1,0 +1,51 @@
+@namespace ApiBench.Web.Components
+@inject CodeGeneratorService CodeGeneratorService
+@inject IJSRuntime JSRuntime
+
+<MudDialog>
+    <DialogContent>
+        <MudTabs Elevation="0" Rounded="true" @bind-ActivePanelIndex="@_activeIndex">
+            @foreach (var lang in Enum.GetValues<CodeLanguage>())
+            {
+                <MudTabPanel Text="@lang.ToString()">
+                    <div class="d-flex justify-end mb-2">
+                        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => CopyToClipboard(lang))">
+                            <MudIcon Icon="@Icons.Material.Filled.ContentCopy" Class="mr-1" />
+                            Copy to Clipboard
+                        </MudButton>
+                    </div>
+                    <MudText Typo="Typo.body2" Class="pa-4" Style="background:#f5f5f5; border-radius:4px; font-family:monospace; white-space:pre-wrap; word-break:break-all;">
+                        @GetCode(lang)
+                    </MudText>
+                </MudTabPanel>
+            }
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IDialogReference? DialogReference { get; set; }
+
+    [Parameter] public ApiRequest Request { get; set; } = new();
+
+    private int _activeIndex;
+
+    private string GetCode(CodeLanguage lang)
+    {
+        return CodeGeneratorService.Generate(Request, lang);
+    }
+
+    private async Task CopyToClipboard(CodeLanguage lang)
+    {
+        var code = GetCode(lang);
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", code);
+    }
+
+    private void Close()
+    {
+        DialogReference?.Close();
+    }
+}

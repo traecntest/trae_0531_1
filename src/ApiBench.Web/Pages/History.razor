@@ -1,0 +1,161 @@
+@page "/history"
+@namespace ApiBench.Web.Pages
+@inject IndexedDbService IndexedDbService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>ApiBench - History</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudStack Spacing="3">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h4">Request History</MudText>
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" OnClick="ClearHistory">
+                <MudIcon Icon="@Icons.Material.Filled.Delete" Class="mr-1" />
+                Clear History
+            </MudButton>
+        </MudStack>
+
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <MudStack Spacing="2">
+                    <MudStack Row="true" Spacing="2" Class="mb-3">
+                        <MudTextField @bind-Value="searchText" Placeholder="Search URL..." Variant="Variant.Outlined" AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start" Style="flex: 1;" />
+                        <MudSelect T="string" @bind-Value="filterMethod" Label="Method" Variant="Variant.Outlined" Clearable="true" Style="width: 150px;">
+                            <MudSelectItem T="string" Value="@("GET")">GET</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("POST")">POST</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("PUT")">PUT</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("DELETE")">DELETE</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("PATCH")">PATCH</MudSelectItem>
+                        </MudSelect>
+                        <MudSelect T="string" @bind-Value="filterStatus" Label="Status" Variant="Variant.Outlined" Clearable="true" Style="width: 150px;">
+                            <MudSelectItem T="string" Value="@("2xx")">2xx Success</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("3xx")">3xx Redirect</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("4xx")">4xx Client Error</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("5xx")">5xx Server Error</MudSelectItem>
+                        </MudSelect>
+                    </MudStack>
+                </MudStack>
+
+                <MudTable T="HistoryEntry" Items="@filteredHistory" Hover="true" Striped="true" Dense="true" Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>Method</MudTh>
+                        <MudTh>URL</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Time</MudTh>
+                        <MudTh>Date</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Method">
+                            <MudChip T="string" Color="@GetMethodColor(context.Request.Method)" Size="Size.Small" Variant="Variant.Filled">
+                                @context.Request.Method
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="URL">@context.Request.Url</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Color="@GetStatusColor(context.Response.StatusCode)" Size="Size.Small">
+                                @context.Response.StatusCode
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Time">@context.Response.ElapsedMs ms</MudTd>
+                        <MudTd DataLabel="Date">@context.Timestamp.ToString("g")</MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <MudText Typo="Typo.body2" Color="Color.Default">No history entries found.</MudText>
+                    </NoRecordsContent>
+                </MudTable>
+            </MudCardContent>
+        </MudCard>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<HistoryEntry> history = new();
+    private string searchText = string.Empty;
+    private string? filterMethod;
+    private string? filterStatus;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistory();
+    }
+
+    private async Task LoadHistory()
+    {
+        var result = await IndexedDbService.GetAllAsync<HistoryEntry>("history");
+        history = result.OrderByDescending(h => h.Timestamp).ToList();
+    }
+
+    private IEnumerable<HistoryEntry> filteredHistory
+    {
+        get
+        {
+            var filtered = history.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                filtered = filtered.Where(h => h.Request.Url.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrEmpty(filterMethod))
+            {
+                filtered = filtered.Where(h => h.Request.Method == filterMethod);
+            }
+
+            if (!string.IsNullOrEmpty(filterStatus))
+            {
+                filtered = filterStatus switch
+                {
+                    "2xx" => filtered.Where(h => h.Response.StatusCode >= 200 && h.Response.StatusCode < 300),
+                    "3xx" => filtered.Where(h => h.Response.StatusCode >= 300 && h.Response.StatusCode < 400),
+                    "4xx" => filtered.Where(h => h.Response.StatusCode >= 400 && h.Response.StatusCode < 500),
+                    "5xx" => filtered.Where(h => h.Response.StatusCode >= 500 && h.Response.StatusCode < 600),
+                    _ => filtered
+                };
+            }
+
+            return filtered;
+        }
+    }
+
+    private Color GetMethodColor(string method)
+    {
+        return method.ToUpper() switch
+        {
+            "GET" => Color.Success,
+            "POST" => Color.Primary,
+            "PUT" => Color.Warning,
+            "DELETE" => Color.Error,
+            "PATCH" => Color.Secondary,
+            _ => Color.Default
+        };
+    }
+
+    private Color GetStatusColor(int statusCode)
+    {
+        if (statusCode >= 200 && statusCode < 300)
+            return Color.Success;
+        if (statusCode >= 300 && statusCode < 400)
+            return Color.Warning;
+        return Color.Error;
+    }
+
+    private async void ClearHistory()
+    {
+        var parameters = new DialogParameters();
+        parameters.Add("ContentText", "Are you sure you want to clear all request history?");
+        parameters.Add("ButtonText", "Clear");
+        parameters.Add("Color", Color.Error);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirm Clear", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await IndexedDbService.ClearAsync("history");
+            await LoadHistory();
+            Snackbar.Add("History cleared", Severity.Success);
+        }
+    }
+}

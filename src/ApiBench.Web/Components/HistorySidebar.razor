@@ -1,0 +1,137 @@
+@namespace ApiBench.Web.Components
+@inject IndexedDbService IndexedDbService
+
+<div class="history-sidebar">
+    <MudStack Spacing="2" Class="pa-2">
+        <MudTextField @bind-Value="@SearchQuery" T="string" Placeholder="Search history..." Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" />
+        <MudDivider />
+        @if (_groupedHistory.Any())
+        {
+            @foreach (var group in _groupedHistory)
+            {
+                <MudExpansionPanel Text="@group.Key">
+                    @foreach (var entry in group.Value)
+                    {
+                        <MudItem Class="pa-2 mb-1" Style="cursor: pointer;" @onclick="@(() => SelectHistoryItem(entry))">
+                            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                <MudChip T="string" Size="Size.Small" Color="@GetMethodColor(entry.Request.Method)">@entry.Request.Method</MudChip>
+                                <MudText Typo="Typo.caption" Class="flex-grow-1 truncate">@entry.Request.Url</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(entry.Response.StatusCode)">@entry.Response.StatusCode</MudChip>
+                            </MudStack>
+                            <MudText Typo="Typo.caption" Color="Color.Default">@entry.Timestamp.ToString("HH:mm:ss")</MudText>
+                        </MudItem>
+                    }
+                </MudExpansionPanel>
+            }
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Color="Color.Default" Class="pa-4 text-center">No history found</MudText>
+        }
+    </MudStack>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<HistoryEntry> OnHistoryItemSelected { get; set; }
+
+    private string _searchQuery = string.Empty;
+    private List<HistoryEntry> _allHistory = new();
+    private Dictionary<string, List<HistoryEntry>> _groupedHistory = new();
+
+    private string SearchQuery
+    {
+        get => _searchQuery;
+        set
+        {
+            _searchQuery = value;
+            FilterAndGroupHistory();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        try
+        {
+            _allHistory = (await IndexedDbService.GetAllAsync<HistoryEntry>("history")).ToList();
+            FilterAndGroupHistory();
+        }
+        catch
+        {
+            _allHistory = new List<HistoryEntry>();
+        }
+    }
+
+    private void FilterAndGroupHistory()
+    {
+        var filtered = string.IsNullOrEmpty(_searchQuery)
+            ? _allHistory
+            : _allHistory.Where(h =>
+                h.Request.Url.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                h.Request.Method.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        _groupedHistory = filtered
+            .OrderByDescending(h => h.Timestamp)
+            .GroupBy(h => GetDateGroup(h.Timestamp))
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    private string GetDateGroup(DateTime timestamp)
+    {
+        var today = DateTime.Today;
+        var date = timestamp.Date;
+
+        if (date == today)
+        {
+            return "Today";
+        }
+        if (date == today.AddDays(-1))
+        {
+            return "Yesterday";
+        }
+        if (date >= today.AddDays(-7))
+        {
+            return "Last Week";
+        }
+        if (date >= today.AddDays(-30))
+        {
+            return "Last Month";
+        }
+        return "Older";
+    }
+
+    private Color GetMethodColor(string method)
+    {
+        return method.ToUpper() switch
+        {
+            "GET" => Color.Success,
+            "POST" => Color.Primary,
+            "PUT" => Color.Warning,
+            "DELETE" => Color.Error,
+            "PATCH" => Color.Secondary,
+            _ => Color.Default
+        };
+    }
+
+    private Color GetStatusColor(int statusCode)
+    {
+        return statusCode switch
+        {
+            >= 200 and < 300 => Color.Success,
+            >= 300 and < 400 => Color.Info,
+            >= 400 and < 500 => Color.Warning,
+            >= 500 => Color.Error,
+            _ => Color.Default
+        };
+    }
+
+    private async Task SelectHistoryItem(HistoryEntry entry)
+    {
+        await OnHistoryItemSelected.InvokeAsync(entry);
+    }
+}

@@ -1,0 +1,107 @@
+@page "/collections"
+@namespace ApiBench.Web.Pages
+@inject IndexedDbService IndexedDbService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>ApiBench - Collections</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudStack Spacing="3">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h4">Collections</MudText>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="OpenNewCollectionDialog">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-1" />
+                New Collection
+            </MudButton>
+        </MudStack>
+
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <MudDataGrid T="ApiCollection" Items="@collections" Hover="true" Striped="true" Dense="true">
+                    <Columns>
+                        <PropertyColumn Property="p => p.Name" Title="Name" />
+                        <PropertyColumn Property="p => p.Requests.Count" Title="Request Count" />
+                        <PropertyColumn Property="p => p.CreatedAt" Title="Created" Format="d" />
+                        <TemplateColumn T="ApiCollection" Title="Actions" Style="width: 180px;">
+                            <CellTemplate>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudIconButton Color="Color.Primary" Icon="@Icons.Material.Filled.Edit" OnClick="@(() => EditCollection(context.Item))" />
+                                    <MudIconButton Color="Color.Success" Icon="@Icons.Material.Filled.PlayArrow" OnClick="@(() => RunCollection(context.Item))" />
+                                    <MudIconButton Color="Color.Error" Icon="@Icons.Material.Filled.Delete" OnClick="@(() => DeleteCollection(context.Item))" />
+                                </MudStack>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<ApiCollection> collections = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCollections();
+    }
+
+    private async Task LoadCollections()
+    {
+        var result = await IndexedDbService.GetAllAsync<ApiCollection>("collections");
+        collections = result.ToList();
+    }
+
+    private async void OpenNewCollectionDialog()
+    {
+        var parameters = new DialogParameters();
+        parameters.Add("Title", "New Collection");
+        parameters.Add("ContentText", "Enter collection name:");
+        parameters.Add("ButtonText", "Create");
+        parameters.Add("Color", Color.Primary);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("New Collection", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var collection = new ApiCollection { Name = "New Collection", Description = "" };
+            await IndexedDbService.PutAsync("collections", collection);
+            await LoadCollections();
+            Snackbar.Add("Collection created", Severity.Success);
+        }
+    }
+
+    private async void EditCollection(ApiCollection collection)
+    {
+        Snackbar.Add($"Editing collection: {collection.Name}", Severity.Info);
+    }
+
+    private async void RunCollection(ApiCollection collection)
+    {
+        var parameters = new DialogParameters();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<MudDialog>($"Run Collection: {collection.Name}", parameters, options);
+    }
+
+    private async void DeleteCollection(ApiCollection collection)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add("ContentText", $"Are you sure you want to delete '{collection.Name}'?");
+        parameters.Add("ButtonText", "Delete");
+        parameters.Add("Color", Color.Error);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirm Delete", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await IndexedDbService.DeleteAsync("collections", collection.Id.ToString());
+            await LoadCollections();
+            Snackbar.Add("Collection deleted", Severity.Success);
+        }
+    }
+}
