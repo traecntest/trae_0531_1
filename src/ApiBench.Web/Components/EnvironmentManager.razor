@@ -1,4 +1,3 @@
-@namespace ApiBench.Web.Components
 @inject EnvironmentService EnvironmentService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -82,7 +81,7 @@
         var dialog = await DialogService.ShowAsync<EnvironmentDialog>("Add Environment", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is ApiEnvironment env)
+        if (result != null && !result.Canceled && result.Data is ApiEnvironment env)
         {
             await EnvironmentService.SaveEnvironmentAsync(env);
             await LoadEnvironments();
@@ -101,7 +100,7 @@
         var dialog = await DialogService.ShowAsync<EnvironmentDialog>("Edit Environment", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is ApiEnvironment env)
+        if (result != null && !result.Canceled && result.Data is ApiEnvironment env)
         {
             env.Id = environment.Id;
             env.IsActive = environment.IsActive;
@@ -131,7 +130,7 @@
         var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirm Delete", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result != null && !result.Canceled)
         {
             await EnvironmentService.DeleteEnvironmentAsync(environment.Id);
             await LoadEnvironments();

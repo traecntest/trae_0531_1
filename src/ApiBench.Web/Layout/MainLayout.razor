@@ -16,22 +16,39 @@
         <MudDrawerHeader>
             <MudText Typo="Typo.h6">ApiBench</MudText>
         </MudDrawerHeader>
-        <MudNavMenu>
-            <MudNavGroup Title="Collections" Icon="@Icons.Material.Filled.Folder" Expanded="true">
-                <MudNavLink Href="/">New Request</MudNavLink>
-                <MudNavLink Href="/collections">Collections</MudNavLink>
-            </MudNavGroup>
-            <MudNavGroup Title="History" Icon="@Icons.Material.Filled.History" Expanded="true">
-                <MudNavLink Href="/history">View History</MudNavLink>
-            </MudNavGroup>
-            <MudNavGroup Title="Environments" Icon="@Icons.Material.Filled.Settings">
-                <MudNavLink Href="/environments">Manage</MudNavLink>
-            </MudNavGroup>
-        </MudNavMenu>
+        <MudStack Spacing="1" Class="pa-2">
+            <MudButton Href="/" Variant="Variant.Text" Color="Color.Primary" FullWidth="true">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                New Request
+            </MudButton>
+            <MudButton Href="/collections" Variant="Variant.Text" Color="Color.Primary" FullWidth="true">
+                <MudIcon Icon="@Icons.Material.Filled.Folder" Class="mr-2" />
+                Collections
+            </MudButton>
+            <MudButton Href="/history" Variant="Variant.Text" Color="Color.Primary" FullWidth="true">
+                <MudIcon Icon="@Icons.Material.Filled.History" Class="mr-2" />
+                History
+            </MudButton>
+            <MudButton Href="/environments" Variant="Variant.Text" Color="Color.Primary" FullWidth="true">
+                <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+                Environments
+            </MudButton>
+        </MudStack>
     </MudDrawer>
 
     <MudMainContent Class="mt-4">
-        @Body
+        <ErrorBoundary>
+            <ChildContent>
+                @Body
+            </ChildContent>
+            <ErrorContent Context="exception">
+                <MudAlert Severity="Severity.Error" Class="ma-4">
+                    <MudText Typo="Typo.h6">An unhandled error has occurred.</MudText>
+                    <MudText Typo="Typo.body2">@exception?.Message</MudText>
+                    <MudText Typo="Typo.caption" Class="mt-2">@exception?.StackTrace</MudText>
+                </MudAlert>
+            </ErrorContent>
+        </ErrorBoundary>
     </MudMainContent>
 </MudLayout>
 

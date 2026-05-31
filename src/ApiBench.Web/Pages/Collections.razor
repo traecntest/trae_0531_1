@@ -1,5 +1,4 @@
 @page "/collections"
-@namespace ApiBench.Web.Pages
 @inject IndexedDbService IndexedDbService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -65,7 +64,7 @@
         var dialog = await DialogService.ShowAsync<MudMessageBox>("New Collection", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result != null && !result.Canceled)
         {
             var collection = new ApiCollection { Name = "New Collection", Description = "" };
             await IndexedDbService.PutAsync("collections", collection);
@@ -74,7 +73,7 @@
         }
     }
 
-    private async void EditCollection(ApiCollection collection)
+    private void EditCollection(ApiCollection collection)
     {
         Snackbar.Add($"Editing collection: {collection.Name}", Severity.Info);
     }
@@ -97,7 +96,7 @@
         var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirm Delete", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result != null && !result.Canceled)
         {
             await IndexedDbService.DeleteAsync("collections", collection.Id.ToString());
             await LoadCollections();

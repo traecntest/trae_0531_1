@@ -1,117 +1,200 @@
 @page "/"
-@namespace ApiBench.Web.Pages
-@inject HttpClientService HttpClientService
-@inject IDialogService DialogService
-@inject EnvironmentService EnvironmentService
-@inject ISnackbar Snackbar
+@inject HttpClient HttpClient
 @inject IndexedDbService IndexedDbService
+@inject ISnackbar Snackbar
 
 <PageTitle>ApiBench - API Testing</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <MudText Typo="Typo.h4" Class="mb-4">API Tester</MudText>
-
-    <MudGrid Spacing="3">
-        <MudItem xs="12" lg="6">
-            <MudCard Elevation="2">
-                <MudCardContent>
-                    <MudText Typo="Typo.h6" Class="mb-3">Request</MudText>
-                    <RequestBuilder @bind-Value="currentRequest" OnSendRequest="SendRequest" />
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" lg="6">
-            <MudCard Elevation="2">
-                <MudCardContent>
-                    <MudText Typo="Typo.h6" Class="mb-3">Response</MudText>
-                    <ResponseViewer Response="currentResponse" />
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-    </MudGrid>
-
-    <MudCard Elevation="1" Class="mt-3">
-        <MudCardContent>
-            <MudButtonGroup Variant="Variant.Filled" Color="Color.Primary">
-                <MudButton OnClick="OpenCodeGenerator">
-                    <MudIcon Icon="@Icons.Material.Filled.Code" Class="mr-1" />
-                    Generate Code
+    <MudStack Spacing="3">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h4">API Request</MudText>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@SaveRequest">
+                    <MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-2" />
+                    Save
                 </MudButton>
-                <MudButton OnClick="SaveRequest">
-                    <MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-1" />
-                    Save Request
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@GenerateCode">
+                    <MudIcon Icon="@Icons.Material.Filled.Code" Class="mr-2" />
+                    Code
                 </MudButton>
-                <MudButton OnClick="AddToCollection">
-                    <MudIcon Icon="@Icons.Material.Filled.Folder" Class="mr-1" />
-                    Add to Collection
-                </MudButton>
-            </MudButtonGroup>
-        </MudCardContent>
-    </MudCard>
-</MudContainer>
+            </MudStack>
+        </MudStack>
 
-@code {
-    private ApiRequest currentRequest = new();
-    private ApiResponse? currentResponse;
-    private ApiEnvironment? activeEnvironment;
+        <RequestBuilder @bind-Value="@_request" OnSendRequest="@SendRequest" />
 
-    protected override async Task OnInitializedAsync()
-    {
-        currentRequest = new ApiRequest();
-        activeEnvironment = await EnvironmentService.GetActiveEnvironmentAsync();
-    }
-
-    private async Task SendRequest(ApiRequest request)
-    {
-        currentResponse = await HttpClientService.SendAsync(request, activeEnvironment);
-        
-        var historyEntry = new HistoryEntry
+        @if (_loading)
         {
-            Request = request,
-            Response = currentResponse,
-            Timestamp = DateTime.UtcNow
-        };
-        await IndexedDbService.PutAsync("history", historyEntry);
-
-        if (currentResponse.StatusCode >= 200 && currentResponse.StatusCode < 300)
+            <MudPaper Class="pa-8" Elevation="0">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                    <MudText Typo="Typo.body1">Sending request...</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else if (_response != null)
         {
-            Snackbar.Add($"Request completed successfully", Severity.Success);
+            <ResponseViewer Response="@_response" />
         }
         else
         {
-            Snackbar.Add($"Request completed with status {currentResponse.StatusCode}", Severity.Info);
+            <MudPaper Class="pa-8" Elevation="0">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Send" Size="Size.Large" Color="Color.Default" />
+                    <MudText Typo="Typo.body1" Color="Color.Default">Click Send to execute the request</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    private ApiRequest _request = new() { Method = "GET", Url = "https://jsonplaceholder.typicode.com/posts/1" };
+    private ApiResponse? _response;
+    private bool _loading;
+
+    private async Task SendRequest(ApiRequest request)
+    {
+        try
+        {
+            _loading = true;
+
+            var fullUrl = request.Url;
+            foreach (var param in request.PathParams.Where(p => p.Enabled && !string.IsNullOrEmpty(p.Key)))
+            {
+                fullUrl = fullUrl.Replace($":{param.Key}", Uri.EscapeDataString(param.Value ?? string.Empty));
+            }
+
+            var queryParts = request.QueryParams
+                .Where(p => p.Enabled && !string.IsNullOrEmpty(p.Key))
+                .Select(p => $"{Uri.EscapeDataString(p.Key)}={Uri.EscapeDataString(p.Value ?? string.Empty)}")
+                .ToList();
+
+            if (queryParts.Any())
+            {
+                var separator = fullUrl.Contains('?') ? "&" : "?";
+                fullUrl += separator + string.Join("&", queryParts);
+            }
+
+            using var httpRequest = new HttpRequestMessage(new HttpMethod(request.Method), fullUrl);
+
+            foreach (var header in request.Headers.Where(h => h.Enabled && !string.IsNullOrEmpty(h.Key)))
+            {
+                httpRequest.Headers.TryAddWithoutValidation(header.Key!, header.Value ?? string.Empty);
+            }
+
+            if (request.BodyType != BodyContentType.None && request.Method != "GET")
+            {
+                HttpContent? content = null;
+
+                switch (request.BodyType)
+                {
+                    case BodyContentType.Json:
+                        content = new StringContent(request.RawBody ?? string.Empty, System.Text.Encoding.UTF8, "application/json");
+                        break;
+                    case BodyContentType.Xml:
+                        content = new StringContent(request.RawBody ?? string.Empty, System.Text.Encoding.UTF8, "application/xml");
+                        break;
+                    case BodyContentType.Binary:
+                        if (!string.IsNullOrEmpty(request.BinaryFileBase64))
+                        {
+                            var bytes = Convert.FromBase64String(request.BinaryFileBase64);
+                            content = new ByteArrayContent(bytes);
+                            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+                        }
+                        break;
+                    case BodyContentType.FormData:
+                        var formContent = new MultipartFormDataContent();
+                        foreach (var field in request.FormFields.Where(f => f.Enabled && !string.IsNullOrEmpty(f.Key)))
+                        {
+                            formContent.Add(new StringContent(field.Value ?? string.Empty), field.Key!);
+                        }
+                        content = formContent;
+                        break;
+                }
+
+                if (content != null)
+                {
+                    httpRequest.Content = content;
+                }
+            }
+
+            var startTime = DateTime.UtcNow;
+            using var httpResponse = await HttpClient.SendAsync(httpRequest);
+            var endTime = DateTime.UtcNow;
+
+            var responseBody = await httpResponse.Content.ReadAsStringAsync();
+
+            _response = new ApiResponse
+            {
+                StatusCode = (int)httpResponse.StatusCode,
+                StatusText = httpResponse.StatusCode.ToString(),
+                ElapsedMs = (long)(endTime - startTime).TotalMilliseconds,
+                Body = responseBody,
+                Headers = httpResponse.Headers.Select(h => new KeyValueItem { Key = h.Key, Value = string.Join(", ", h.Value), Enabled = true }).ToList(),
+                Cookies = new List<KeyValueItem>(),
+                ContentType = httpResponse.Content.Headers.ContentType?.MediaType ?? "text/plain",
+                Timestamp = DateTime.UtcNow
+            };
+
+            await SaveToHistory(request, _response);
+        }
+        catch (Exception ex)
+        {
+            _response = new ApiResponse
+            {
+                StatusCode = 0,
+                StatusText = "Error",
+                Body = ex.Message,
+                ElapsedMs = 0,
+                Headers = new List<KeyValueItem>(),
+                Cookies = new List<KeyValueItem>(),
+                ContentType = "text/plain",
+                Timestamp = DateTime.UtcNow
+            };
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
         }
     }
 
-    private async void OpenCodeGenerator()
+    private async Task SaveToHistory(ApiRequest request, ApiResponse response)
     {
-        var parameters = new DialogParameters<CodeGeneratorDialog>
+        try
         {
-            { x => x.Request, currentRequest }
-        };
+            var historyEntry = new HistoryEntry
+            {
+                Request = request,
+                Response = response,
+                Timestamp = DateTime.UtcNow
+            };
 
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true };
-        await DialogService.ShowAsync<CodeGeneratorDialog>("Generate Code", parameters, options);
-    }
-
-    private async void SaveRequest()
-    {
-        await IndexedDbService.PutAsync("requests", currentRequest);
-        Snackbar.Add("Request saved", Severity.Success);
-    }
-
-    private async void AddToCollection()
-    {
-        var collections = await IndexedDbService.GetAllAsync<ApiCollection>("collections");
-        
-        if (!collections.Any())
-        {
-            Snackbar.Add("No collections found. Create a collection first", Severity.Warning);
-            return;
+            await IndexedDbService.PutAsync("history", historyEntry);
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to save to history: {ex.Message}");
+        }
+    }
 
-        var parameters = new DialogParameters();
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
-        var dialog = await DialogService.ShowAsync<MudMessageBox>("Add to Collection", parameters, options);
+    private async Task SaveRequest()
+    {
+        try
+        {
+            _request.CreatedAt = DateTime.UtcNow;
+            await IndexedDbService.PutAsync("requests", _request);
+            Snackbar.Add("Request saved successfully!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save request: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void GenerateCode()
+    {
+        Snackbar.Add("Code generation coming soon!", Severity.Info);
     }
 }

@@ -18,8 +18,4 @@ builder.Services.AddScoped<CodeGeneratorService>();
 builder.Services.AddScoped<CollectionRunnerService>();
 
 var host = builder.Build();
-
-var dbService = host.Services.GetRequiredService<IndexedDbService>();
-await dbService.InitAsync();
-
 await host.RunAsync();

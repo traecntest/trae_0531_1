@@ -1,5 +1,4 @@
 @page "/history"
-@namespace ApiBench.Web.Pages
 @inject IndexedDbService IndexedDbService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -151,7 +150,7 @@
         var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirm Clear", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result != null && !result.Canceled)
         {
             await IndexedDbService.ClearAsync("history");
             await LoadHistory();
