@@ -52,7 +52,7 @@
         collections = result.ToList();
     }
 
-    private async void OpenNewCollectionDialog()
+    private async Task OpenNewCollectionDialog()
     {
         var parameters = new DialogParameters();
         parameters.Add("Title", "New Collection");
@@ -85,7 +85,7 @@
         await DialogService.ShowAsync<MudDialog>($"Run Collection: {collection.Name}", parameters, options);
     }
 
-    private async void DeleteCollection(ApiCollection collection)
+    private async Task DeleteCollection(ApiCollection collection)
     {
         var parameters = new DialogParameters();
         parameters.Add("ContentText", $"Are you sure you want to delete '{collection.Name}'?");

@@ -26,7 +26,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] private IDialogReference? DialogReference { get; set; }
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
 
     [Parameter] public ApiRequest Request { get; set; } = new();
 
@@ -45,6 +45,6 @@
 
     private void Close()
     {
-        DialogReference?.Close();
+        MudDialog.Close();
     }
 }

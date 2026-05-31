@@ -70,7 +70,7 @@
         }
     }
 
-    private async void OpenAddDialog()
+    private async Task OpenAddDialog()
     {
         var parameters = new DialogParameters<EnvironmentDialog>
         {
@@ -89,7 +89,7 @@
         }
     }
 
-    private async void OpenEditDialog(ApiEnvironment environment)
+    private async Task OpenEditDialog(ApiEnvironment environment)
     {
         var parameters = new DialogParameters<EnvironmentDialog>
         {

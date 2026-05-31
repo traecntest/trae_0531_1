@@ -9,6 +9,11 @@ public class IndexedDbService : IAsyncDisposable
     private IJSObjectReference? _module;
     private bool _initialized;
 
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public IndexedDbService(IJSRuntime jsRuntime)
     {
         _jsRuntime = jsRuntime;
@@ -47,7 +52,7 @@ public class IndexedDbService : IAsyncDisposable
         {
             return default;
         }
-        return JsonSerializer.Deserialize<T>(element.GetRawText());
+        return JsonSerializer.Deserialize<T>(element.GetRawText(), _jsonOptions);
     }
 
     public async Task<IList<T>> GetAllAsync<T>(string store)
@@ -55,7 +60,7 @@ public class IndexedDbService : IAsyncDisposable
         await EnsureInitializedAsync();
         var module = await GetModuleAsync();
         var element = await module.InvokeAsync<JsonElement>("getAll", store);
-        return JsonSerializer.Deserialize<IList<T>>(element.GetRawText()) ?? new List<T>();
+        return JsonSerializer.Deserialize<IList<T>>(element.GetRawText(), _jsonOptions) ?? new List<T>();
     }
 
     public async Task PutAsync<T>(string store, T item)

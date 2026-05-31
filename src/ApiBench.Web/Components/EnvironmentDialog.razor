@@ -42,7 +42,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] private IDialogReference? DialogReference { get; set; }
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
 
     [Parameter] public ApiEnvironment Environment { get; set; } = new();
 
@@ -69,11 +69,11 @@
 
     private void Submit()
     {
-        DialogReference?.Close(DialogResult.Ok(_environment));
+        MudDialog.Close(DialogResult.Ok(_environment));
     }
 
     private void Cancel()
     {
-        DialogReference?.Close();
+        MudDialog.Close(DialogResult.Cancel());
     }
 }

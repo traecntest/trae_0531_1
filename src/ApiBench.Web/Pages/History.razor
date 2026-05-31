@@ -139,7 +139,7 @@
         return Color.Error;
     }
 
-    private async void ClearHistory()
+    private async Task ClearHistory()
     {
         var parameters = new DialogParameters();
         parameters.Add("ContentText", "Are you sure you want to clear all request history?");
